@@ -133,6 +133,10 @@ def load_flat10(data_dict, modellist, runlist, runlist_wc, varlist):
                         dsmerge_f['rh'] = dsmerge_f['soilResp_mm_srf']
                     if 'GPP_mm_srf gpp' in dsmerge_f: #HadCM3 cSoil
                         dsmerge_f['gpp'] = dsmerge_f['GPP_mm_srf gpp']
+                    if 'temp_mm_1_5m' in dsmerge_f: #HadCM3 tas
+                        dsmerge_f['tas']= dsmerge_f['temp_mm_1_5m']
+                    if 'precip_mm_srf' in dsmerge_f: #HadCM3 pr
+                        dsmerge_f['pr']= dsmerge_f['precip_mm_srf']
                      
                 if model =='UKESM1.2':
                     missing_value = 1.0e36
@@ -154,6 +158,12 @@ def load_flat10(data_dict, modellist, runlist, runlist_wc, varlist):
                         dsmerge_f['rh'] = dsmerge_f['m01s19i053']
                     if 'm01s19i183' in dsmerge_f: #UKESM   
                         dsmerge_f['gpp'] = dsmerge_f['m01s19i183']
+                    if 'air_temperature' in dsmerge_f: #UKESM
+                        dsmerge_f['tas'] = dsmerge_f['air_temperature']
+                    if 'precipitation_flux' in dsmerge_f: #UKESM
+                        dsmerge_f['pr'] = dsmerge_f['precipitation_flux']
+                    
+                    
 
 
 
