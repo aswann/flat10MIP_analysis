@@ -162,7 +162,14 @@ def load_flat10(data_dict, modellist, runlist, runlist_wc, varlist):
                         dsmerge_f['tas'] = dsmerge_f['air_temperature']
                     if 'precipitation_flux' in dsmerge_f: #UKESM
                         dsmerge_f['pr'] = dsmerge_f['precipitation_flux']
-                    
+
+                
+                if model == 'NorESM2-LM':
+                    if 'PRECC' in dsmerge_f: #NorESM
+                        dsmerge_f['pr']=dsmerge_f['PRECC']
+                        if dsmerge_f['pr'].units == 'm/s':
+                            dsmerge_f['pr']=dsmerge_f['pr']*(1e3)
+                            dsmerge_f['pr'].attrs['units'] = 'kg m-2 s-1' #equivalent is mm/s
                     
 
 
@@ -204,7 +211,7 @@ def load_flat10(data_dict, modellist, runlist, runlist_wc, varlist):
                 if v ==0:
                     dsmerge_v = dsmerge_f.copy()
                 else:
-                    dsmerge_v=xr.merge([dsmerge_v, dsmerge_f])
+                    dsmerge_v=xr.merge([dsmerge_v, dsmerge_f],compat='override')
     
                 # add a new variable that is the sum of all carbon pools
                 if all(var_name in dsmerge_v for var_name in ['cVeg', 'cSoil', 'cLitter']):
