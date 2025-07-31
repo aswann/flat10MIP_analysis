@@ -32,7 +32,8 @@ def load_flat10(data_dict, modellist, runlist, runlist_wc, varlist):
     import numpy.ma as ma
     
     import xarray as xr
-    xr.set_options(enable_cftimeindex=True)
+    #xr.set_options(enable_cftimeindex=True)
+    from xarray.coding.times import CFTimedeltaCoder
     
     import time
     import cftime
@@ -81,9 +82,9 @@ def load_flat10(data_dict, modellist, runlist, runlist_wc, varlist):
                 for f in range(len(filenamelist)):
                     file = filenamelist[f]
                     if f==0:
-                        dsmerge_f = xr.open_dataset(file, use_cftime=True)
+                        dsmerge_f = xr.open_dataset(file, use_cftime=True,decode_timedelta=CFTimedeltaCoder())
                     else:
-                        ds = xr.open_dataset(file, use_cftime=True)
+                        ds = xr.open_dataset(file, use_cftime=True,decode_timedelta=CFTimedeltaCoder())
                         dsmerge_f=xr.concat([dsmerge_f,ds],dim='time')
     
                 #----- Dealing with GISS----#
@@ -143,7 +144,11 @@ def load_flat10(data_dict, modellist, runlist, runlist_wc, varlist):
                     for var_name, vari in dsmerge_f.data_vars.items(): #replace missing value with nan
                         # Apply only if variable is numeric and has at least one dimension
                         if np.issubdtype(vari.dtype, np.number):
-                            dsmerge_f[var_name] = vari.where(vari < missing_value * 0.1, np.nan)
+                            try:
+                                dsmerge_f[var_name] = vari.where(vari < missing_value * 0.1, np.nan)
+                            except:
+                                print('vari=' +str(vari) +' var_name=' +var_name)
+                                raise
                     if 'vegetation_carbon_content' in dsmerge_f: #UKESM 
                         dsmerge_f['cVeg'] = dsmerge_f['vegetation_carbon_content']
                     if 'soil_carbon_content' in dsmerge_f: #UKESM
@@ -253,7 +258,8 @@ def load_grid(data_dict,modellist):
     import numpy.ma as ma
     
     import xarray as xr
-    xr.set_options(enable_cftimeindex=True)
+    #xr.set_options(enable_cftimeindex=True)
+    from xarray.coding.times import CFTimedeltaCoder
     
     import time
     import cftime
@@ -278,11 +284,11 @@ def load_grid(data_dict,modellist):
         print(model +' getting grid info')
         # get land fraction
         filenamelist= glob.glob(outputdir +model +'/*/*sftlf*.nc')
-        landfrac = xr.open_dataset(filenamelist[0], use_cftime=True)
+        landfrac = xr.open_dataset(filenamelist[0], use_cftime=True,decode_timedelta=CFTimedeltaCoder())
     
         # get area of gridcells
         filenamelist= glob.glob(outputdir +model +'/*/*areacella*.nc')
-        areacella = xr.open_dataset(filenamelist[0], use_cftime=True)
+        areacella = xr.open_dataset(filenamelist[0], use_cftime=True,decode_timedelta=CFTimedeltaCoder())
        
         #----correct the name of the lat lon dimensions for landfrac and areacella
         if (((model =='HadCM3LC-Bris') or (model == 'UKESM1.2')) and ('lat' not in landfrac)):
@@ -315,7 +321,10 @@ def load_grid(data_dict,modellist):
     
     return data_dict
 
-#=========
+
+
+
+#==================
 def weighted_temporal_mean(ds, var):
     """
     takes an annual average weighted by days in each month
@@ -337,6 +346,7 @@ def weighted_temporal_mean(ds, var):
     
     import xarray as xr
     xr.set_options(enable_cftimeindex=True)
+    from xarray.coding.times import CFTimedeltaCoder
 
     import time
     import cftime
@@ -393,8 +403,9 @@ def select_time_slice(dataset, startyear, endyear):
     import numpy.ma as ma
     
     import xarray as xr
-    xr.set_options(enable_cftimeindex=True)
-
+    #xr.set_options(enable_cftimeindex=True)
+    from xarray.coding.times import CFTimedeltaCoder
+    
     import time
     import cftime
 
