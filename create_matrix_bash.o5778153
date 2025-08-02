@@ -1,0 +1,3 @@
+Warning: no access to tty (Inappropriate ioctl for device).
+Thus no job control in this shell.
+/var/spool/pbs/mom_priv/jobs/5778153.casper-pbs.SC: line 23: 23872 Killed                  python create_metrics_matrix.py

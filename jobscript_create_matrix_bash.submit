@@ -1,0 +1,23 @@
+#!/bin/bash -l
+### Job Name
+#PBS -N create_matrix_bash
+### Charging account
+#PBS -A UWAS0155
+### Request one chunk of resources with 1 CPU and 10 GB of memory
+#PBS -l select=1:ncpus=1:mem=20GB
+### Allow job to run up to 30 minutes
+#PBS -l walltime=59:00
+### Route the job to the casper queue
+#PBS -q casper
+### Join output and error streams into single file
+#PBS -j oe
+
+export TMPDIR=${SCRATCH}/temp
+mkdir -p ${TMPDIR}
+
+### Load Conda/Python module and activate NPL environment
+module load conda
+conda activate npl-2025b
+
+### Run analysis script
+python create_metrics_matrix_onemodat.py 

@@ -17,7 +17,7 @@ mkdir -p ${TMPDIR}
 
 ### Load Conda/Python module and activate NPL environment
 module load conda
-conda activate npl
+conda activate npl-2025b
 
 ### Run analysis script
-python create_metrics_matrix.py datafile.dat
+python create_metrics_matrix.py 

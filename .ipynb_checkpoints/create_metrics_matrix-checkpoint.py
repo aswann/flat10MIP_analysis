@@ -1,9 +1,9 @@
 ### Create a netcdf file with a matrix of processed time series
-# this works with environment npl2023b
+# this works with environment npl2025b
 # to run on the command line:
 #
 # module load conda
-# conda activate npl2023b
+# conda activate npl-2025b
 # python create_metrics_matrix.py
 
 
@@ -15,8 +15,7 @@ import numpy.matlib
 import numpy.ma as ma
 
 import xarray as xr
-#xr.set_options(enable_cftimeindex=True)
-from xarray.coding.times import CFTimedeltaCoder
+
 
 import time
 import cftime
@@ -115,7 +114,11 @@ ts= np.arange(350)
 for m in range(len(modellist)):
 #for m in range(len(['GFDL-ESM4',  'GISS_E2.1',  'NorESM2-LM','MPI-ESM1-2-LR'])):
     model=modellist[m]
-    print('loading model: ' +model)
+    print('processing model: ' +model)
+
+    ds_area = data_dict[modellist[m] +'_' +'areacella']
+    ds_landfrac = data_dict[modellist[m] +'_' +'landfrac']
+    
     #----loop over experiments----# 
     for e in range(len(runlist)):
         run = runlist[e]
@@ -123,11 +126,8 @@ for m in range(len(modellist)):
 
 
         ds=data_dict[modellist[m] +'_' +runlist[e]]
-        ds_area = data_dict[modellist[m] +'_' +'areacella']
-        ds_landfrac = data_dict[modellist[m] +'_' +'landfrac']
-        #area = ds_area['areacella'].expand_dims(dim={'time': ds.time.size}, axis=0)
-        #landfrac=ds_landfrac['sftlf'].expand_dims(dim={'time': ds.time.size}, axis=0)
-        
+
+       
         
         if model=='CESM2':
             area = ds_area['areacella'].squeeze().reindex_like(ds, method='nearest',tolerance=0.05)
@@ -145,7 +145,37 @@ for m in range(len(modellist)):
         #----loop over variables----#
         for v in range(len(varlist)):
             var=varlist[v]
-            #print('loading variable: ' +var)
+            print('processing variable: ' +var)
+
+            # NorESM has drift that needs to be corrected
+            # load the drift correction matrix and remove the drift
+            if model=='NorESM2-LM':
+                if var=='cVeg':
+                    field = pickle.load(open('/glade/campaign/cgd/tss/people/aswann/flat10/NorESM2-LM/NorESM2-LM_2D_TOTVEGC_ann_drift.pkl','rb'))
+                    adj_matrix = xr.DataArray(np.squeeze(field), dims=['lat','lon'], coords={'latitude': ds.lat, 'longitude':ds.lon})##,unit={'g C m-2 yr-1'})
+                    ty=ds['time'].dt.year
+                    tyindx=ty-ty[0]+1
+                    adjustment = adj_matrix* tyindx*(1/1000) #this is the drift for each time point and each gridcell in kg C m-2 yr-1
+
+                    ds[var]=ds[var]+adjustment # remove the drift from the variable
+                    
+                elif var=='cSoil':
+                    field = pickle.load(open('/glade/campaign/cgd/tss/people/aswann/flat10/NorESM2-LM/NorESM2-LM_2D_TOTSOMC_ann_drift.pkl','rb'))
+                    adj_matrix = xr.DataArray(np.squeeze(field), dims=['lat','lon'], coords={'latitude': ds.lat, 'longitude':ds.lon})##,unit={'g C m-2 yr-1'})
+                    ty=ds['time'].dt.year
+                    tyindx=ty-ty[0]+1
+                    adjustment = adj_matrix* tyindx*(1/1000) #this is the drift for each time point and each gridcell in kg C m-2 yr-1
+
+                    ds[var]=ds[var]+adjustment # remove the drift from the variable
+                    
+                elif var=='cLitter':
+                    field = pickle.load(open('/glade/campaign/cgd/tss/people/aswann/flat10/NorESM2-LM/NorESM2-LM_2D_TOTLITC_ann_drift.pkl','rb'))
+                    adj_matrix = xr.DataArray(np.squeeze(field), dims=['lat','lon'], coords={'latitude': ds.lat, 'longitude':ds.lon})##,unit={'g C m-2 yr-1'})
+                    ty=ds['time'].dt.year
+                    tyindx=ty-ty[0]+1
+                    adjustment = adj_matrix* tyindx*(1/1000) #this is the drift for each time point and each gridcell in kg C m-2 yr-1
+
+                    ds[var]=ds[var]+adjustment # remove the drift from the variable
 
             data_var= weighted_temporal_mean(ds, var)
 
@@ -176,6 +206,11 @@ for m in range(len(modellist)):
                 C_troplat_mat[0:len(C_global),m,e,v]= C_troplat*PgperKg
                 C_midlat_mat[0:len(C_global),m,e,v]= C_midlat*PgperKg
 
+            # reset values after the end of the time series to nan
+            C_global_mat[(len(C_global)):,m,e,v]=np.nan
+            C_highlat_mat[(len(C_highlat)):,m,e,v]=np.nan
+            C_troplat_mat[(len(C_troplat)):,m,e,v]=np.nan
+            C_midlat_mat[(len(C_midlat)):,m,e,v]=np.nan
 
 
 

@@ -33,7 +33,9 @@ def load_flat10(data_dict, modellist, runlist, runlist_wc, varlist):
     
     import xarray as xr
     #xr.set_options(enable_cftimeindex=True)
-    from xarray.coding.times import CFTimedeltaCoder
+    #from xarray.coding.times import CFTimedeltaCoder
+    time_coder = xr.coders.CFDatetimeCoder(use_cftime=True) #create time coder with cftime
+    # CFTimedeltaCoder(decode_via_units=True)
     
     import time
     import cftime
@@ -82,9 +84,9 @@ def load_flat10(data_dict, modellist, runlist, runlist_wc, varlist):
                 for f in range(len(filenamelist)):
                     file = filenamelist[f]
                     if f==0:
-                        dsmerge_f = xr.open_dataset(file, use_cftime=True,decode_timedelta=CFTimedeltaCoder())
+                        dsmerge_f = xr.open_dataset(file,decode_times=time_coder,decode_timedelta=False)
                     else:
-                        ds = xr.open_dataset(file, use_cftime=True,decode_timedelta=CFTimedeltaCoder())
+                        ds = xr.open_dataset(file,decode_times=time_coder,decode_timedelta=False)
                         dsmerge_f=xr.concat([dsmerge_f,ds],dim='time')
     
                 #----- Dealing with GISS----#
@@ -234,6 +236,478 @@ def load_flat10(data_dict, modellist, runlist, runlist_wc, varlist):
 
 
 #==================
+    
+def load_one_model(model, run_wc, varlist):
+
+    '''
+     this function loads all variables in varlist for one experiment for one model
+     into an xarray dataset
+    
+     model -  model names that match filenames
+     run_wc - run name with wildcards
+     varlist - list of variables to load
+     
+    examples:
+    modellist= ['ACCESS-ESM1-5',  
+                'CESM2',    
+                'GFDL-ESM4',  
+                'GISS_E2.1',  
+                'NorESM2-LM',
+                'MPI-ESM1-2-LR',
+                'CNRM-ESM2-1',
+                'HadCM3LC-Bris']
+    runlist = ['flat10','flat10_zec','flat10_cdr']
+    # use a wildcard to capture different ways the folders and runs are named across models
+    runlist_wc = ['*lat10','*zec','*cdr']
+    
+    varlist_load=['cVeg','cSoil','cLitter','nbp','gpp','rh'] #, 'gpp','fgco2', 'ra', 'rh']#, 'npp'] # not working beyond nbp for norESM
+    '''
+
+
+
+    import numpy as np
+    import numpy.matlib
+    import numpy.ma as ma
+    
+    import xarray as xr
+    #xr.set_options(enable_cftimeindex=True)
+    #from xarray.coding.times import CFTimedeltaCoder
+    time_coder = xr.coders.CFDatetimeCoder(use_cftime=True) #create time coder with cftime
+    # CFTimedeltaCoder(decode_via_units=True)
+    
+    import time
+    import cftime
+    import netCDF4 as nc
+    from datetime import timedelta
+    
+    import pandas as pd
+    
+    import glob
+    
+    
+    ## notes on packages to add to this kernel
+    import nc_time_axis
+
+
+
+
+
+    # data location
+    outputdir= '/glade/campaign/cgd/tss/people/aswann/flat10/'
+
+        
+    print('loading model: ' +model)
+
+    run=run_wc
+    print('loading run: ' +run)
+    #----loop over variables----#
+    for v in range(len(varlist)):
+        var=varlist[v]
+        print('loading variable: ' +var)
+        
+        searchpath= outputdir +model +'/' +run +'/*' +var +'_*.nc'
+        if ((model =='CESM2') or (model == 'UKESM1.2')):
+            # all models have a var_ filename except CESM
+            searchpath= outputdir +model +'/' +run +'/*' +var +'*.nc'
+        
+        filenamelist= np.sort(glob.glob(searchpath)) # sort in time order, xarray was having trouble arranging some of them in time dim
+
+        #----loop over filenames----#
+        # some variables are stored in multiple files
+        # this should be possible with xr.open_mfdataset but it isn't loading all of time points
+        for f in range(len(filenamelist)):
+            file = filenamelist[f]
+            if f==0:
+                dsmerge_f = xr.open_dataset(file,decode_times=time_coder,decode_timedelta=False)
+            else:
+                ds = xr.open_dataset(file,decode_times=time_coder,decode_timedelta=False)
+                dsmerge_f=xr.concat([dsmerge_f,ds],dim='time')
+
+        #----- Dealing with GISS----#
+        # GISS does not have a "time" index, and instead just a list of years
+        # lets replace the "year" dimension (data is called "years")
+        # with a cftime object called "time" so it matches the other models
+        # some variables don't have the variable that defines years at all
+        if ((model == 'GISS_E2.1') and ('time' not in dsmerge_f)):         
+            if 'year' in dsmerge_f: # if it has a variable called year, use that to make the time index
+                time_index = [cftime.DatetimeNoLeap(year, 1, 1) for year in dsmerge_f.year]
+            else: # if it does not have a variable for year, use the size of the year dimension to make the time index
+                startyear=[1850, 1950, 1950] # these are the start years for each experiment for GISS
+                years = np.arange(startyear[r], startyear[r]+len(dsmerge_f['year']))
+                time_index = [cftime.DatetimeNoLeap(year, 1, 1) for year in years]
+            
+            # Create a new DataArray with cftime objects
+            time_da = xr.DataArray(time_index, dims='year')
+            # Add time_da as a coordinate to the dataset
+            dsmerge_f.coords['time'] = time_da
+            # Now, swap dimensions from 'years' to 'time'
+            dsmerge_f = dsmerge_f.swap_dims({'year': 'time'})
+            # drop the year variable
+            #dsmerge_f = dsmerge_f.drop_vars('year')
+        
+        #----correct the name of the lat lon dimensions
+        if (((model =='HadCM3LC-Bris') or (model == 'UKESM1.2')) and ('lat' not in dsmerge_f)):
+            #-- change latitude and longitude to lat and lon for HadCM3
+            dsmerge_f = dsmerge_f.rename({'longitude': 'lon','latitude': 'lat'})
+        
+        #----correct variable names----# 
+        if 'nep' in dsmerge_f: # one model has nbp called nep instead -> add an nbp variable that is a copy of nep
+            dsmerge_f['nbp'] = dsmerge_f['nep']
+            #dsmerge_f = dsmerge_f.drop_vars('nep') # to remove it from the dataset
+        
+        if model =='HadCM3LC-Bris':
+            if 'GBMVegCarb_srf' in dsmerge_f: #HadCM3 
+                dsmerge_f['cVeg'] = dsmerge_f['GBMVegCarb_srf']
+            if 'soilCarbon_srf' in dsmerge_f: #HadCM3 
+                dsmerge_f['cSoil'] = dsmerge_f['soilCarbon_srf']
+            if 'NPP_mm_srf' in dsmerge_f: #HadCM3 
+                dsmerge_f['npp'] = dsmerge_f['NPP_mm_srf']
+            if 'unknown' in dsmerge_f: #HadCM3 
+                dsmerge_f['nbp'] = dsmerge_f['unknown']
+            if 'field1560_mm_srf' in dsmerge_f: #HadCM3 
+                dsmerge_f['fgco2'] = dsmerge_f['field1560_mm_srf']
+            if 'soilResp_mm_srf' in dsmerge_f: #HadCM3 cSoil
+                dsmerge_f['rh'] = dsmerge_f['soilResp_mm_srf']
+            if 'GPP_mm_srf gpp' in dsmerge_f: #HadCM3 cSoil
+                dsmerge_f['gpp'] = dsmerge_f['GPP_mm_srf gpp']
+            if 'temp_mm_1_5m' in dsmerge_f: #HadCM3 tas
+                dsmerge_f['tas']= dsmerge_f['temp_mm_1_5m']
+            if 'precip_mm_srf' in dsmerge_f: #HadCM3 pr
+                dsmerge_f['pr']= dsmerge_f['precip_mm_srf']
+             
+        if model =='UKESM1.2':
+            missing_value = 1.0e36
+            for var_name, vari in dsmerge_f.data_vars.items(): #replace missing value with nan
+                # Apply only if variable is numeric and has at least one dimension
+                if np.issubdtype(vari.dtype, np.number):
+                    try:
+                        dsmerge_f[var_name] = vari.where(vari < missing_value * 0.1, np.nan)
+                    except:
+                        print('vari=' +str(vari) +' var_name=' +var_name)
+                        raise
+            if 'vegetation_carbon_content' in dsmerge_f: #UKESM 
+                dsmerge_f['cVeg'] = dsmerge_f['vegetation_carbon_content']
+            if 'soil_carbon_content' in dsmerge_f: #UKESM
+                dsmerge_f['cSoil'] = dsmerge_f['soil_carbon_content']
+            if 'm01s19i102' in dsmerge_f: #UKESM 
+                dsmerge_f['npp'] = dsmerge_f['m01s19i102']
+            #if 'unknown' in dsmerge_f: #UKESM  ###I CANT FIND NBP, will need to be constructed from soil resp, plant resp, and gpp? should verify with UKESM group
+            #    dsmerge_f['nbp'] = dsmerge_f['unknown']
+            if 'm01s00i250' in dsmerge_f: #UKESM
+                dsmerge_f['fgco2'] = dsmerge_f['m01s00i250']
+            if 'm01s19i053' in dsmerge_f: #UKESM
+                dsmerge_f['rh'] = dsmerge_f['m01s19i053']
+            if 'm01s19i183' in dsmerge_f: #UKESM   
+                dsmerge_f['gpp'] = dsmerge_f['m01s19i183']
+            if 'air_temperature' in dsmerge_f: #UKESM
+                dsmerge_f['tas'] = dsmerge_f['air_temperature']
+            if 'precipitation_flux' in dsmerge_f: #UKESM
+                dsmerge_f['pr'] = dsmerge_f['precipitation_flux']
+
+        
+        if model == 'NorESM2-LM':
+            if 'PRECC' in dsmerge_f: #NorESM
+                dsmerge_f['pr']=dsmerge_f['PRECC']
+                if dsmerge_f['pr'].units == 'm/s':
+                    dsmerge_f['pr']=dsmerge_f['pr']*(1e3)
+                    dsmerge_f['pr'].attrs['units'] = 'kg m-2 s-1' #equivalent is mm/s
+            
+
+
+
+        
+        #----check units and convert if necessary----#
+        if var in dsmerge_f: 
+            if model =='CESM2':
+                if dsmerge_f[var].units == 'gC/m^2/s':
+                    dsmerge_f[var]=dsmerge_f[var]*(1/1000) # convert from gC to kgC
+                    dsmerge_f[var].attrs['units'] = 'kg m-2 s-1'
+                # stock variables
+                elif dsmerge_f[var].units == 'gC/m^2':
+                    dsmerge_f[var]=dsmerge_f[var]*(1/1000) # convert from gC to kgC
+                    dsmerge_f[var].attrs['units'] = 'kg m-2'
+
+            # the units for cVeg in GISS look like they MUST be in gC rather than kgC 
+            # CHANGING THE UNIT - even though it is reported as kgC, assuming it is in gC
+            if ((var == 'cVeg') and (model == 'GISS_E2.1')):
+                dsmerge_f[var]=dsmerge_f[var]*(1/1000) # convert from gC to kgC
+
+            
+        else: #var does not exist
+            ds=dsmerge_f
+            # add a blank variable so that loops work
+            if 'time' in ds:
+                nan_dataarray = xr.DataArray(np.full((len(ds['time']),len(ds['lat']), len(ds['lon'])), np.nan), 
+                                             coords={'lon': ds['lon'], 'lat': ds['lat'],'time': ds['time']}, dims=['time','lat', 'lon'])
+            #else: # this should now be obsolete
+            #    nan_dataarray = xr.DataArray(np.full((len(ds['year']),len(ds['lat']), len(ds['lon'])), np.nan), 
+            #             coords={'lon': ds['lon'], 'lat': ds['lat'],'year': ds['year']}, dims=['year','lat', 'lon'])
+
+
+            # Assign the new variable to the dataset
+            dsmerge_f[var] = nan_dataarray
+        
+        #----merge all variables into one dataset----#
+        # if it's the first variable, then start a new datset, otherwise merge with existing
+        if v ==0:
+            dsmerge_v = dsmerge_f.copy()
+        else:
+            dsmerge_v=xr.merge([dsmerge_v, dsmerge_f],compat='override')
+
+        # add a new variable that is the sum of all carbon pools
+        if all(var_name in dsmerge_v for var_name in ['cVeg', 'cSoil', 'cLitter']):
+            if (dsmerge_v['cLitter'].notnull().all()): #litter is sometimes missing. Would be good to make this more general but dealing with this problem for now.
+                dsmerge_v['cTot'] = dsmerge_v['cVeg']+dsmerge_v['cSoil']+dsmerge_v['cLitter'] 
+            else: 
+                dsmerge_v['cTot'] = dsmerge_v['cVeg']+dsmerge_v['cSoil'] 
+    
+    #----save output to a dictionary----#
+    print('finished loading ' +model +' ' +run)
+    #data_dict[model +'_' +runlist[r]] = dsmerge_v
+    ## - save the matrix to a netcdf file
+    ##dsmerge_v.to_netcdf(model +'_' +run +'.nc')
+
+    return dsmerge_v
+
+#==================
+    
+def load_one_model_onevar(model, run_wc, var):
+
+    '''
+     this function loads all variables in varlist for one experiment for one model
+     into an xarray dataset
+    
+     model -  model names that match filenames
+     run_wc - run name with wildcards
+     varlist - list of variables to load
+     
+    examples:
+    modellist= ['ACCESS-ESM1-5',  
+                'CESM2',    
+                'GFDL-ESM4',  
+                'GISS_E2.1',  
+                'NorESM2-LM',
+                'MPI-ESM1-2-LR',
+                'CNRM-ESM2-1',
+                'HadCM3LC-Bris']
+    runlist = ['flat10','flat10_zec','flat10_cdr']
+    # use a wildcard to capture different ways the folders and runs are named across models
+    runlist_wc = ['*lat10','*zec','*cdr']
+    
+    varlist_load=['cVeg','cSoil','cLitter','nbp','gpp','rh'] #, 'gpp','fgco2', 'ra', 'rh']#, 'npp'] # not working beyond nbp for norESM
+    '''
+
+
+
+    import numpy as np
+    import numpy.matlib
+    import numpy.ma as ma
+    
+    import xarray as xr
+    #xr.set_options(enable_cftimeindex=True)
+    #from xarray.coding.times import CFTimedeltaCoder
+    time_coder = xr.coders.CFDatetimeCoder(use_cftime=True) #create time coder with cftime
+    # CFTimedeltaCoder(decode_via_units=True)
+    
+    import time
+    import cftime
+    import netCDF4 as nc
+    from datetime import timedelta
+    
+    import pandas as pd
+    
+    import glob
+    
+    
+    ## notes on packages to add to this kernel
+    import nc_time_axis
+
+
+
+
+
+    # data location
+    outputdir= '/glade/campaign/cgd/tss/people/aswann/flat10/'
+
+        
+    #print('loading model: ' +model)
+
+    run=run_wc
+    #print('loading run: ' +run)
+
+    print('loading variable: ' +var)
+    
+    searchpath= outputdir +model +'/' +run +'/*' +var +'_*.nc'
+    if ((model =='CESM2') or (model == 'UKESM1.2')):
+        # all models have a var_ filename except CESM
+        searchpath= outputdir +model +'/' +run +'/*' +var +'*.nc'
+    if (model =='NorESM2-LM'):
+        # all models have a var_ filename except CESM
+        searchpath= outputdir +model +'/' +run +'/' +var +'_*.nc'
+    
+    filenamelist= np.sort(glob.glob(searchpath)) # sort in time order, xarray was having trouble arranging some of them in time dim
+
+    # initialize
+    dsmerge_f=None
+    
+    #----loop over filenames----#
+    # some variables are stored in multiple files
+    # this should be possible with xr.open_mfdataset but it isn't loading all of time points
+    for f in range(len(filenamelist)):
+        file = filenamelist[f]
+        if f==0:
+            dsmerge_f = xr.open_dataset(file,decode_times=time_coder,decode_timedelta=False, chunks={'time': 10})
+        else:
+            ds = xr.open_dataset(file,decode_times=time_coder,decode_timedelta=False, chunks={'time': 10})
+            dsmerge_f=xr.concat([dsmerge_f,ds],dim='time')
+
+    if dsmerge_f is None: 
+        print('no data for ' +var)
+        return # exit this function
+        
+    #----- Dealing with GISS----#
+    # GISS does not have a "time" index, and instead just a list of years
+    # lets replace the "year" dimension (data is called "years")
+    # with a cftime object called "time" so it matches the other models
+    # some variables don't have the variable that defines years at all
+    if ((model == 'GISS_E2.1') and ('time' not in dsmerge_f)):         
+        if 'year' in dsmerge_f: # if it has a variable called year, use that to make the time index
+            time_index = [cftime.DatetimeNoLeap(year, 1, 1) for year in dsmerge_f.year]
+        else: # if it does not have a variable for year, use the size of the year dimension to make the time index
+            #runlist_wc = ['*lat10','*zec','*cdr']
+            # startyear=[1850, 1950, 1950] # these are the start years for each experiment for GISS
+            if run=='*lat10':
+                startyear=1850
+            elif run=='*zec':
+                startyear=1950
+            elif run=='*cdr':
+                startyear=1950
+            years = np.arange(startyear, startyear+len(dsmerge_f['year']))
+            time_index = [cftime.DatetimeNoLeap(year, 1, 1) for year in years]
+        
+        # Create a new DataArray with cftime objects
+        time_da = xr.DataArray(time_index, dims='year')
+        # Add time_da as a coordinate to the dataset
+        dsmerge_f.coords['time'] = time_da
+        # Now, swap dimensions from 'years' to 'time'
+        dsmerge_f = dsmerge_f.swap_dims({'year': 'time'})
+        # drop the year variable
+        #dsmerge_f = dsmerge_f.drop_vars('year')
+    
+    #----correct the name of the lat lon dimensions
+    if (((model =='HadCM3LC-Bris') or (model == 'UKESM1.2')) and ('lat' not in dsmerge_f)):
+        #-- change latitude and longitude to lat and lon for HadCM3
+        dsmerge_f = dsmerge_f.rename({'longitude': 'lon','latitude': 'lat'})
+    
+    #----correct variable names----# 
+    if 'nep' in dsmerge_f: # one model has nbp called nep instead -> add an nbp variable that is a copy of nep
+        dsmerge_f['nbp'] = dsmerge_f['nep']
+        #dsmerge_f = dsmerge_f.drop_vars('nep') # to remove it from the dataset
+    
+    if model =='HadCM3LC-Bris':
+        if 'GBMVegCarb_srf' in dsmerge_f: #HadCM3 
+            dsmerge_f['cVeg'] = dsmerge_f['GBMVegCarb_srf']
+        if 'soilCarbon_srf' in dsmerge_f: #HadCM3 
+            dsmerge_f['cSoil'] = dsmerge_f['soilCarbon_srf']
+        if 'NPP_mm_srf' in dsmerge_f: #HadCM3 
+            dsmerge_f['npp'] = dsmerge_f['NPP_mm_srf']
+        if 'unknown' in dsmerge_f: #HadCM3 
+            dsmerge_f['nbp'] = dsmerge_f['unknown']
+        if 'field1560_mm_srf' in dsmerge_f: #HadCM3 
+            dsmerge_f['fgco2'] = dsmerge_f['field1560_mm_srf']
+        if 'soilResp_mm_srf' in dsmerge_f: #HadCM3 cSoil
+            dsmerge_f['rh'] = dsmerge_f['soilResp_mm_srf']
+        if 'GPP_mm_srf gpp' in dsmerge_f: #HadCM3 cSoil
+            dsmerge_f['gpp'] = dsmerge_f['GPP_mm_srf gpp']
+        if 'temp_mm_1_5m' in dsmerge_f: #HadCM3 tas
+            dsmerge_f['tas']= dsmerge_f['temp_mm_1_5m']
+        if 'precip_mm_srf' in dsmerge_f: #HadCM3 pr
+            dsmerge_f['pr']= dsmerge_f['precip_mm_srf']
+         
+    if model =='UKESM1.2':
+        missing_value = 1.0e36
+        for var_name, vari in dsmerge_f.data_vars.items(): #replace missing value with nan
+            # Apply only if variable is numeric and has at least one dimension
+            if np.issubdtype(vari.dtype, np.number):
+                try:
+                    dsmerge_f[var_name] = vari.where(vari < missing_value * 0.1, np.nan)
+                except:
+                    print('vari=' +str(vari) +' var_name=' +var_name)
+                    raise
+        if 'vegetation_carbon_content' in dsmerge_f: #UKESM 
+            dsmerge_f['cVeg'] = dsmerge_f['vegetation_carbon_content']
+        if 'soil_carbon_content' in dsmerge_f: #UKESM
+            dsmerge_f['cSoil'] = dsmerge_f['soil_carbon_content']
+        if 'm01s19i102' in dsmerge_f: #UKESM 
+            dsmerge_f['npp'] = dsmerge_f['m01s19i102']
+        #if 'unknown' in dsmerge_f: #UKESM  ###I CANT FIND NBP, will need to be constructed from soil resp, plant resp, and gpp? should verify with UKESM group
+        #    dsmerge_f['nbp'] = dsmerge_f['unknown']
+        if 'm01s00i250' in dsmerge_f: #UKESM
+            dsmerge_f['fgco2'] = dsmerge_f['m01s00i250']
+        if 'm01s19i053' in dsmerge_f: #UKESM
+            dsmerge_f['rh'] = dsmerge_f['m01s19i053']
+        if 'm01s19i183' in dsmerge_f: #UKESM   
+            dsmerge_f['gpp'] = dsmerge_f['m01s19i183']
+        if 'air_temperature' in dsmerge_f: #UKESM
+            dsmerge_f['tas'] = dsmerge_f['air_temperature']
+        if 'precipitation_flux' in dsmerge_f: #UKESM
+            dsmerge_f['pr'] = dsmerge_f['precipitation_flux']
+
+    
+    if model == 'NorESM2-LM':
+        if 'PRECC' in dsmerge_f: #NorESM
+            dsmerge_f['pr']=dsmerge_f['PRECC']
+            if dsmerge_f['pr'].units == 'm/s':
+                dsmerge_f['pr']=dsmerge_f['pr']*(1e3)
+                dsmerge_f['pr'].attrs['units'] = 'kg m-2 s-1' #equivalent is mm/s
+        
+
+
+
+    
+    #----check units and convert if necessary----#
+    if var in dsmerge_f: 
+        if model =='CESM2':
+            if dsmerge_f[var].units == 'gC/m^2/s':
+                dsmerge_f[var]=dsmerge_f[var]*(1/1000) # convert from gC to kgC
+                dsmerge_f[var].attrs['units'] = 'kg m-2 s-1'
+            # stock variables
+            elif dsmerge_f[var].units == 'gC/m^2':
+                dsmerge_f[var]=dsmerge_f[var]*(1/1000) # convert from gC to kgC
+                dsmerge_f[var].attrs['units'] = 'kg m-2'
+
+        # the units for cVeg in GISS look like they MUST be in gC rather than kgC 
+        # CHANGING THE UNIT - even though it is reported as kgC, assuming it is in gC
+        if ((var == 'cVeg') and (model == 'GISS_E2.1')):
+            dsmerge_f[var]=dsmerge_f[var]*(1/1000) # convert from gC to kgC
+
+        
+    else: #var does not exist
+        ds=dsmerge_f
+        # add a blank variable so that loops work
+        if 'time' in ds:
+            nan_dataarray = xr.DataArray(np.full((len(ds['time']),len(ds['lat']), len(ds['lon'])), np.nan), 
+                                         coords={'lon': ds['lon'], 'lat': ds['lat'],'time': ds['time']}, dims=['time','lat', 'lon'])
+        #else: # this should now be obsolete
+        #    nan_dataarray = xr.DataArray(np.full((len(ds['year']),len(ds['lat']), len(ds['lon'])), np.nan), 
+        #             coords={'lon': ds['lon'], 'lat': ds['lat'],'year': ds['year']}, dims=['year','lat', 'lon'])
+
+
+        # Assign the new variable to the dataset
+        dsmerge_f[var] = nan_dataarray
+    
+    
+    #----save output to a dictionary----#
+    print('finished loading ' +model +' ' +run +' ' +var)
+    #data_dict[model +'_' +runlist[r]] = dsmerge_v
+    ## - save the matrix to a netcdf file
+    ##dsmerge_v.to_netcdf(model +'_' +run +'.nc')
+
+    return dsmerge_f
+
+
+
+#==================
 def load_grid(data_dict,modellist):
     '''
     this function loads the grid information including area of cells, ocean area, and land fraction
@@ -259,7 +733,8 @@ def load_grid(data_dict,modellist):
     
     import xarray as xr
     #xr.set_options(enable_cftimeindex=True)
-    from xarray.coding.times import CFTimedeltaCoder
+    #from xarray.coding.times import CFTimedeltaCoder
+    time_coder = xr.coders.CFDatetimeCoder(use_cftime=True) #create time coder with cftime
     
     import time
     import cftime
@@ -284,11 +759,11 @@ def load_grid(data_dict,modellist):
         print(model +' getting grid info')
         # get land fraction
         filenamelist= glob.glob(outputdir +model +'/*/*sftlf*.nc')
-        landfrac = xr.open_dataset(filenamelist[0], use_cftime=True,decode_timedelta=CFTimedeltaCoder())
+        landfrac = xr.open_dataset(filenamelist[0],decode_times=time_coder)
     
         # get area of gridcells
         filenamelist= glob.glob(outputdir +model +'/*/*areacella*.nc')
-        areacella = xr.open_dataset(filenamelist[0], use_cftime=True,decode_timedelta=CFTimedeltaCoder())
+        areacella = xr.open_dataset(filenamelist[0],decode_times=time_coder)
        
         #----correct the name of the lat lon dimensions for landfrac and areacella
         if (((model =='HadCM3LC-Bris') or (model == 'UKESM1.2')) and ('lat' not in landfrac)):
@@ -312,7 +787,7 @@ def load_grid(data_dict,modellist):
 
        ## get area of ocean gridcells
        # filenamelist= glob.glob(outputdir +model +'/*/*areacello*.nc')
-       # areacello = xr.open_dataset(filenamelist[0], use_cftime=True)
+       # areacello = xr.open_dataset(filenamelist[0],decode_times=time_coder)
         
        # if model =='CESM2':
        #     areacello=areacello*1e-4 # CESM2 has area units of cm2 for ocean
@@ -345,8 +820,8 @@ def weighted_temporal_mean(ds, var):
     import numpy.ma as ma
     
     import xarray as xr
-    xr.set_options(enable_cftimeindex=True)
-    from xarray.coding.times import CFTimedeltaCoder
+    #xr.set_options(enable_cftimeindex=True)
+    #from xarray.coding.times import CFTimedeltaCoder
 
     import time
     import cftime
@@ -404,7 +879,7 @@ def select_time_slice(dataset, startyear, endyear):
     
     import xarray as xr
     #xr.set_options(enable_cftimeindex=True)
-    from xarray.coding.times import CFTimedeltaCoder
+    #from xarray.coding.times import CFTimedeltaCoder
     
     import time
     import cftime
