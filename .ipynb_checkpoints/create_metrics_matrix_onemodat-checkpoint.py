@@ -36,7 +36,7 @@ import cartopy
 
 
 import warnings
-#warnings.filterwarnings("ignore", message="invalid value encountered in divide")
+warnings.filterwarnings("ignore", message="invalid value encountered in divide") # this gets rid of this warning. Could cause issues if the warning comes true!
 
 import pickle
 
@@ -106,11 +106,11 @@ varlist=varlist_load
 # ###---------------####
 # create matrix of zonal mean time series for 
 
-#- initialize
-C_global_mat= np.empty([350,len(modellist),len(runlist),len(varlist)])
-C_highlat_mat= np.empty([350,len(modellist),len(runlist),len(varlist)])
-C_troplat_mat= np.empty([350,len(modellist),len(runlist),len(varlist)])
-C_midlat_mat= np.empty([350,len(modellist),len(runlist),len(varlist)])
+#- initialize with nan
+C_global_mat= np.full([350,len(modellist),len(runlist),len(varlist)],np.nan)
+C_highlat_mat= np.full([350,len(modellist),len(runlist),len(varlist)],np.nan)
+C_troplat_mat= np.full([350,len(modellist),len(runlist),len(varlist)],np.nan)
+C_midlat_mat= np.full([350,len(modellist),len(runlist),len(varlist)],np.nan)
 
 # create a time series of years for the first dimension
 ts= np.arange(350)
@@ -155,39 +155,41 @@ for m in range(len(modellist)):
                     landfrac=landfrac/100
                     
                 landarea=area*landfrac
-                 
-    
+
+                # make an annual time series that is properly weighted by days in month
+                data_var= weighted_temporal_mean(ds, var)
+                
                 # NorESM has drift that needs to be corrected
                 # load the drift correction matrix and remove the drift
                 if model=='NorESM2-LM':
                     if var=='cVeg':
                         field = pickle.load(open('/glade/campaign/cgd/tss/people/aswann/flat10/NorESM2-LM/NorESM2-LM_2D_TOTVEGC_ann_drift.pkl','rb'))
                         adj_matrix = xr.DataArray(np.squeeze(field), dims=['lat','lon'], coords={'latitude': ds.lat, 'longitude':ds.lon})##,unit={'g C m-2 yr-1'})
-                        ty=ds['time'].dt.year
-                        tyindx=ty-ty[0]+1
+                        ty=data_var['time'].dt.year
+                        tyindx=ty-1850+1
                         adjustment = adj_matrix* tyindx*(1/1000) #this is the drift for each time point and each gridcell in kg C m-2 yr-1
     
-                        ds[var]=ds[var]+adjustment # remove the drift from the variable
+                        data_var=data_var-adjustment # remove the drift from the variable
                         
                     elif var=='cSoil':
                         field = pickle.load(open('/glade/campaign/cgd/tss/people/aswann/flat10/NorESM2-LM/NorESM2-LM_2D_TOTSOMC_ann_drift.pkl','rb'))
                         adj_matrix = xr.DataArray(np.squeeze(field), dims=['lat','lon'], coords={'latitude': ds.lat, 'longitude':ds.lon})##,unit={'g C m-2 yr-1'})
-                        ty=ds['time'].dt.year
-                        tyindx=ty-ty[0]+1
+                        ty=data_var['time'].dt.year
+                        tyindx=ty-1850+1
                         adjustment = adj_matrix* tyindx*(1/1000) #this is the drift for each time point and each gridcell in kg C m-2 yr-1
     
-                        ds[var]=ds[var]+adjustment # remove the drift from the variable
+                        ds[var]=ds[var]-adjustment # remove the drift from the variable
                         
                     elif var=='cLitter':
                         field = pickle.load(open('/glade/campaign/cgd/tss/people/aswann/flat10/NorESM2-LM/NorESM2-LM_2D_TOTLITC_ann_drift.pkl','rb'))
                         adj_matrix = xr.DataArray(np.squeeze(field), dims=['lat','lon'], coords={'latitude': ds.lat, 'longitude':ds.lon})##,unit={'g C m-2 yr-1'})
-                        ty=ds['time'].dt.year
-                        tyindx=ty-ty[0]+1
+                        ty=data_var['time'].dt.year
+                        tyindx=ty-1850+1
                         adjustment = adj_matrix* tyindx*(1/1000) #this is the drift for each time point and each gridcell in kg C m-2 yr-1
     
-                        ds[var]=ds[var]+adjustment # remove the drift from the variable
+                        data_var=data_var-adjustment # remove the drift from the variable
     
-                data_var= weighted_temporal_mean(ds, var)
+                
     
                 # mask for nans 
                 # Mask landarea where it's zero or NaN to avoid invalid values
@@ -279,6 +281,42 @@ data_arrayxr = xr.DataArray(
 
 # Build Dataset from DataArray
 ds_C_global = xr.Dataset({"data": data_arrayxr})
+
+
+##----- Add total carbon cTot as the sum of other variables
+
+# Step 1: Extract and compute
+cveg = ds_C_global["data"].sel(var="cVeg")
+csoil = ds_C_global["data"].sel(var="cSoil")
+clitter = ds_C_global["data"].sel(var="cLitter")
+
+##ctot = cveg + csoil + clitter  # shape: (time, model, run, latrange) # this did not properly ignore nans
+# Stack them along a new axis, then use np.nansum along that axis
+stacked = xr.concat([cveg, csoil, clitter], dim="sum_items")  # new dimension with size 3
+
+# Now sum along the new 'sum_items' dimension, ignoring NaNs
+ctot = stacked.reduce(np.nansum, dim="sum_items")
+
+# Step 2: Add new 'var' dimension
+ctot_expanded = ctot.expand_dims(dim={"var": ["cTot"]})  # shape: (var=1, time, model, run, latrange)
+
+# Step 3: Rename for clarity (optional)
+ctot_expanded.name = "data"
+
+# Step 4: Combine both into a new dataset (this is the key step)
+combined_da = xr.concat([ds_C_global["data"], ctot_expanded], dim="var")
+
+# Step 5: Replace in dataset with correct coordinates
+ds_C_global = xr.Dataset(
+    {"data": combined_da},
+    coords={
+        "time": ds_C_global.coords["time"],
+        "model": ds_C_global.coords["model"],
+        "run": ds_C_global.coords["run"],
+        "latrange": ds_C_global.coords["latrange"],
+        "var": combined_da.coords["var"]
+    }
+)
 
 # ###----------------####
 
