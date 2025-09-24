@@ -1,0 +1,23 @@
+Warning: no access to tty (Inappropriate ioctl for device).
+Thus no job control in this shell.
+ACCESS-ESM1-5 getting grid info
+CESM2 getting grid info
+GFDL-ESM4 getting grid info
+GISS_E2.1 getting grid info
+NorESM2-LM getting grid info
+MPI-ESM1-2-LR getting grid info
+CNRM-ESM2-1 getting grid info
+HadCM3LC-Bris getting grid info
+UKESM1.2 getting grid info
+processing model: ACCESS-ESM1-5
+processing run: flat10
+processing variable: cVeg
+loading variable: cVeg
+finished loading ACCESS-ESM1-5 *lat10 cVeg
+Traceback (most recent call last):
+  File "/glade/work/aswann/jupyter_notebooks/flat10MIP_analysis/create_metrics_matrix_onemodat_monthly.py", line 230, in <module>
+    C_global_mat[0:len(C_global),m,e,v]= C_global*PgperKg
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/glade/u/apps/opt/conda/envs/npl-2025b/lib/python3.12/site-packages/xarray/core/dataset.py", line 1216, in __array__
+    raise TypeError(
+TypeError: cannot directly convert an xarray.Dataset into a numpy array. Instead, create an xarray.DataArray first, either with indexing on the Dataset or by invoking the `to_dataarray()` method.
