@@ -523,7 +523,7 @@ def load_one_model_onevar(model, run_wc, var):
     import nc_time_axis
 
 
-
+    speryr=60*60*24*365
 
 
     # data location
@@ -639,19 +639,26 @@ def load_one_model_onevar(model, run_wc, var):
         if 'soil_carbon_content' in dsmerge_f: #UKESM
             dsmerge_f['cSoil'] = dsmerge_f['soil_carbon_content']
         if 'm01s19i102' in dsmerge_f: #UKESM 
-            dsmerge_f['npp'] = dsmerge_f['m01s19i102']
+            dsmerge_f['npp'] = dsmerge_f['m01s19i102']*(1/speryr)
         #if 'unknown' in dsmerge_f: #UKESM  ###I CANT FIND NBP, will need to be constructed from soil resp, plant resp, and gpp? should verify with UKESM group
         #    dsmerge_f['nbp'] = dsmerge_f['unknown']
         if 'm01s00i250' in dsmerge_f: #UKESM
             dsmerge_f['fgco2'] = dsmerge_f['m01s00i250']
         if 'm01s19i053' in dsmerge_f: #UKESM
-            dsmerge_f['rh'] = dsmerge_f['m01s19i053']
+            dsmerge_f['rh'] = dsmerge_f['m01s19i053']*(1/speryr)
         if 'm01s19i183' in dsmerge_f: #UKESM   
-            dsmerge_f['gpp'] = dsmerge_f['m01s19i183']
+            dsmerge_f['gpp'] = dsmerge_f['m01s19i183']*(1/speryr)
         if 'air_temperature' in dsmerge_f: #UKESM
             dsmerge_f['tas'] = dsmerge_f['air_temperature']
         if 'precipitation_flux' in dsmerge_f: #UKESM
             dsmerge_f['pr'] = dsmerge_f['precipitation_flux']
+        if 'nbp' in dsmerge_f: #UKESM
+            dsmerge_f['nbp'] = dsmerge_f['nbp']*(1/speryr)
+        # if we were loading all variables at once this would work, but one at a time it does not. Instead I made new nc files that did this calculation already
+        # if model =='UKESM1.2': #UKESM is missing nbp, but it can be calculated from npp and rh
+        #NBP = NPP-RH
+        # if ('npp' in dsmerge_f) and ('rh' in dsmerge_f):
+        #     dsmerge_f['nbp'] = dsmerge_f['npp'] - dsmerge_f['rh']
 
     
     if model == 'NorESM2-LM':
@@ -696,6 +703,8 @@ def load_one_model_onevar(model, run_wc, var):
         # Assign the new variable to the dataset
         dsmerge_f[var] = nan_dataarray
     
+
+
     
     #----save output to a dictionary----#
     print('finished loading ' +model +' ' +run +' ' +var)
@@ -919,3 +928,95 @@ def select_time_slice(dataset, startyear, endyear):
         time_slice = dataset.sel(time=slice(start_date, end_date))
     
     return time_slice
+
+#==================
+    
+def load_observations(zonal):
+
+    '''
+     this function loads observational datasets
+
+     inputs: flag that indicates output for zonal mean
+     zonal = 0 full grid output only
+     zonal = 1 also output zonal mean
+     
+     outputs:
+     cSoil, cVeg, cSoil_zonal, cVeg_zonal
+     
+    '''
+
+    import numpy as np
+    # import numpy.matlib
+    # import numpy.ma as ma
+    
+    import xarray as xr
+    # time_coder = xr.coders.CFDatetimeCoder(use_cftime=True) #create time coder with cftime
+    
+    # import time
+    # import cftime
+    # import netCDF4 as nc
+    # from datetime import timedelta
+
+    # cVeg
+    # XuSaatchi.nc
+
+    #-------- load data
+    outputdir= '/glade/work/aswann/datasets/'
+
+    cSoil=xr.open_dataset(outputdir +'cSoil_fx_HWSD2_19600101-20220101.nc') 
+    cVeg=xr.open_dataset(outputdir +'XuSaatchi.nc')
+
+    # ------- convert the longitude grid to 0 to 360
+    # soil
+    unitconvert_soil= 1e-12 #convert from kgC to PgC
+    soilCdb=cSoil.copy(deep=True)
+    # convert longitude 
+    lon=soilCdb['lon'].values
+    lon360=np.where(lon<0,lon +360,lon)
+    soilCdb['lon']=lon360 # convert lon to 0-360
+    soilCdb = soilCdb.sortby(soilCdb.lon)
+    cSoil=soilCdb['cSoil']*unitconvert_soil # extract the variable and convert to PgC/m2
+    
+    # veg
+    unitconvert_veg= 1e-13#Mg/ha to Pg/m2, 1ha/m2=1e-4, Mg/Pg = 1e6/1e15 =1e-9 => 1e-13
+    vegCdb=cVeg.copy(deep=True)
+    # convert longitude 
+    lon=vegCdb['lon'].values
+    lon360=np.where(lon<0,lon +360,lon)
+    vegCdb['lon']=lon360 # convert lon to 0-360 
+    vegCdb = vegCdb.sortby(vegCdb.lon)
+    cVeg=vegCdb['biomass']*unitconvert_veg # extract the variable and convert to PgC/m2
+
+    if zonal==0:
+        print('full grid output only')
+        return cSoil, cVeg
+    else:
+        print('creating zonal average output')
+        #------- load area and land fraction from a model so we can area weight
+        from loading_function_flat10 import  load_grid
+    
+        # load grid info for the highest resolution grid which we will interpolate
+        outputdir= '/glade/campaign/cgd/tss/people/aswann/flat10/'
+        modellist=['CESM2']
+        # initialize a dictionary to hold grid data
+        data_dict={}
+        data_dict = load_grid(data_dict,modellist)
+    
+        model='CESM2' # this is the highest resolution model
+    
+        #--- get area and land fraction
+        ds_area = data_dict[model +'_' +'areacella']
+        ds_landfrac = data_dict[model +'_' +'landfrac']
+    
+        #--------- calculate zonal profiles
+        # interpolate to the cSoil grid
+        area = ds_area['areacella'].squeeze().interp_like(soilCdb, method='nearest')
+        landfrac=ds_landfrac['sftlf'].interp_like(soilCdb, method='nearest')
+        cSoil_zonal=(cSoil*landfrac*area).sum(dim='lon').squeeze() 
+
+        # interpolate to the cVeg grid
+        area = ds_area['areacella'].squeeze().interp_like(vegCdb, method='nearest')
+        landfrac=ds_landfrac['sftlf'].interp_like(vegCdb, method='nearest')
+        cVeg_zonal=(cVeg*landfrac*area).sum(dim='lon').mean(dim='time').squeeze()
+    
+        return cSoil, cVeg, cSoil_zonal, cVeg_zonal

@@ -20,5 +20,5 @@ module load conda
 conda activate npl-2025b
 
 ### Run analysis script
-##python create_metrics_matrix_onemodat.py 
-python create_metrics_matrix_onemodat_monthly.py 
+python create_metrics_matrix_onemodat.py 
+##python create_metrics_matrix_onemodat_monthly.py 
