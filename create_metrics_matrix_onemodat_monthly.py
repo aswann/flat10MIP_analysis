@@ -1,4 +1,4 @@
-# ## Create a netcdf file with a matrix of processed time series
+## Create a netcdf file with a matrix of processed time series
 # this works with environment npl2025b
 # to run on the command line:
 #
@@ -202,15 +202,15 @@ for m in range(len(modellist)):
                 masked_data = data_var[var].where(valid_mask)
     
                 landarea_global = masked_landarea.sum(dim=['lat','lon'])
-                landarea_highlat = ((masked_landarea.where(ds.lat>=highlat)).sum(dim=['lat','lon']))
+                landarea_highlat = ((masked_landarea.where(abs(ds.lat)>=highlat)).sum(dim=['lat','lon']))
                 landarea_troplat = ((masked_landarea.where((ds.lat>=-troplat) & (ds.lat<=troplat))).sum(dim=['lat','lon']))
-                landarea_midlat = ((masked_landarea.where((ds.lat>=troplat) & (ds.lat<=highlat))).sum(dim=['lat','lon']))
+                landarea_midlat = ((masked_landarea.where((abs(ds.lat)>troplat) & (abs(ds.lat)<highlat))).sum(dim=['lat','lon']))
     
                 if var=='tas' or var=='pr': 
                     C_global =(((masked_data*masked_landarea)).sum(dim=['lat','lon']))/landarea_global
-                    C_highlat=(((masked_data*masked_landarea).where(ds.lat>=highlat)).sum(dim=['lat','lon']))/landarea_highlat
+                    C_highlat=(((masked_data*masked_landarea).where(abs(ds.lat)>=highlat)).sum(dim=['lat','lon']))/landarea_highlat
                     C_troplat=(((masked_data*masked_landarea).where((ds.lat>=-troplat) & (ds.lat<=troplat))).sum(dim=['lat','lon']))/landarea_troplat
-                    C_midlat=(((masked_data*masked_landarea).where((ds.lat>=troplat) & (ds.lat<=highlat))).sum(dim=['lat','lon']))/landarea_midlat
+                    C_midlat=(((masked_data*masked_landarea).where((abs(ds.lat)>troplat) & (abs(ds.lat)<highlat))).sum(dim=['lat','lon']))/landarea_midlat
         
                     #put into matrix 
                     C_global_mat[0:len(C_global),m,e,v]= C_global
@@ -222,9 +222,9 @@ for m in range(len(modellist)):
                     # total carbon on land. Becuase it is in units of carbon/area (kgC/m2), multiply by area
                     # our area variable is in m2
                     C_global =(((masked_data*masked_landarea)).sum(dim=['lat','lon']))
-                    C_highlat=((masked_data*masked_landarea).where(ds.lat>=highlat)).sum(dim=['lat','lon'])
+                    C_highlat=((masked_data*masked_landarea).where(abs(ds.lat)>=highlat)).sum(dim=['lat','lon'])
                     C_troplat=((masked_data*masked_landarea).where((ds.lat>=-troplat) & (ds.lat<=troplat))).sum(dim=['lat','lon'])
-                    C_midlat=((masked_data*masked_landarea).where((ds.lat>=troplat) & (ds.lat<=highlat))).sum(dim=['lat','lon'])
+                    C_midlat=((masked_data*masked_landarea).where((abs(ds.lat)>troplat) & (abs(ds.lat)<highlat))).sum(dim=['lat','lon'])
         
                     #put into matrix and convert to PgC (kgC => PgC, divide by 10^12)
                     C_global_mat[0:len(C_global),m,e,v]= C_global*PgperKg

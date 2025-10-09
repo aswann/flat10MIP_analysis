@@ -1,0 +1,7 @@
+Warning: no access to tty (Inappropriate ioctl for device).
+Thus no job control in this shell.
+Traceback (most recent call last):
+  File "/glade/work/aswann/jupyter_notebooks/flat10MIP_analysis/create_metrics_matrix_onemodat_monthly.py", line 1, in <module>
+    abs() ## Create a netcdf file with a matrix of processed time series
+    ^^^^^
+TypeError: abs() takes exactly one argument (0 given)

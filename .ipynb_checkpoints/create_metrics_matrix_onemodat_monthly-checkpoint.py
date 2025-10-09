@@ -1,4 +1,4 @@
-# ## Create a netcdf file with a matrix of processed time series
+## Create a netcdf file with a matrix of processed time series
 # this works with environment npl2025b
 # to run on the command line:
 #
@@ -199,39 +199,38 @@ for m in range(len(modellist)):
                 # Mask landarea where it's zero or NaN to avoid invalid values
                 valid_mask = (landarea > 0) & landarea.notnull()
                 masked_landarea = landarea.where(valid_mask)
-                masked_data = data_var.where(valid_mask)
+                masked_data = data_var[var].where(valid_mask)
     
                 landarea_global = masked_landarea.sum(dim=['lat','lon'])
-                landarea_highlat = ((masked_landarea.where(ds.lat>=highlat)).sum(dim=['lat','lon']))
+                landarea_highlat = ((masked_landarea.where(abs(ds.lat)>=highlat)).sum(dim=['lat','lon']))
                 landarea_troplat = ((masked_landarea.where((ds.lat>=-troplat) & (ds.lat<=troplat))).sum(dim=['lat','lon']))
-                landarea_midlat = ((masked_landarea.where((ds.lat>=troplat) & (ds.lat<=highlat))).sum(dim=['lat','lon']))
+                landarea_midlat = ((masked_landarea.where((abs(ds.lat)>troplat) & (abs(ds.lat)<highlat))).sum(dim=['lat','lon']))
     
                 if var=='tas' or var=='pr': 
                     C_global =(((masked_data*masked_landarea)).sum(dim=['lat','lon']))/landarea_global
-                    C_highlat=(((masked_data*masked_landarea).where(ds.lat>=highlat)).sum(dim=['lat','lon']))/landarea_highlat
+                    C_highlat=(((masked_data*masked_landarea).where(abs(ds.lat)>=highlat)).sum(dim=['lat','lon']))/landarea_highlat
                     C_troplat=(((masked_data*masked_landarea).where((ds.lat>=-troplat) & (ds.lat<=troplat))).sum(dim=['lat','lon']))/landarea_troplat
-                    C_midlat=(((masked_data*masked_landarea).where((ds.lat>=troplat) & (ds.lat<=highlat))).sum(dim=['lat','lon']))/landarea_midlat
+                    C_midlat=(((masked_data*masked_landarea).where((abs(ds.lat)>troplat) & (abs(ds.lat)<highlat))).sum(dim=['lat','lon']))/landarea_midlat
         
                     #put into matrix 
-                    C_global_mat[0:len(C_global),m,e,v]= C_global.to_dataarray()
-                    C_highlat_mat[0:len(C_global),m,e,v]= C_highlat.to_dataarray()
-                    C_troplat_mat[0:len(C_global),m,e,v]= C_troplat.to_dataarray()
-                    C_midlat_mat[0:len(C_global),m,e,v]= C_midlat.to_dataarray()
+                    C_global_mat[0:len(C_global),m,e,v]= C_global
+                    C_highlat_mat[0:len(C_global),m,e,v]= C_highlat
+                    C_troplat_mat[0:len(C_global),m,e,v]= C_troplat
+                    C_midlat_mat[0:len(C_global),m,e,v]= C_midlat
                 
                 else: # it is a carbon variable and we want to make a sum
                     # total carbon on land. Becuase it is in units of carbon/area (kgC/m2), multiply by area
                     # our area variable is in m2
                     C_global =(((masked_data*masked_landarea)).sum(dim=['lat','lon']))
-                    C_highlat=((masked_data*masked_landarea).where(ds.lat>=highlat)).sum(dim=['lat','lon'])
+                    C_highlat=((masked_data*masked_landarea).where(abs(ds.lat)>=highlat)).sum(dim=['lat','lon'])
                     C_troplat=((masked_data*masked_landarea).where((ds.lat>=-troplat) & (ds.lat<=troplat))).sum(dim=['lat','lon'])
-                    C_midlat=((masked_data*masked_landarea).where((ds.lat>=troplat) & (ds.lat<=highlat))).sum(dim=['lat','lon'])
+                    C_midlat=((masked_data*masked_landarea).where((abs(ds.lat)>troplat) & (abs(ds.lat)<highlat))).sum(dim=['lat','lon'])
         
                     #put into matrix and convert to PgC (kgC => PgC, divide by 10^12)
-                    C_global_mat[0:len(C_global),m,e,v]= (C_global*PgperKg
-                                                         ).to_dataarray()                    C_highlat_mat[0:len(C_global),m,e,v]= (C_highlat*PgperKg).to_dataarray()
-                    C_troplat_mat[0:len(C_global),m,e,v]= (C_troplat*PgperKg).to_dataarray()
-                    C_midlat_mat[0:len(C_global),m,e,v]= (C_midlat*PgperKg
-                                                         ).to_dataarray()    
+                    C_global_mat[0:len(C_global),m,e,v]= C_global*PgperKg
+                    C_highlat_mat[0:len(C_global),m,e,v]= C_highlat*PgperKg
+                    C_troplat_mat[0:len(C_global),m,e,v]= C_troplat*PgperKg
+                    C_midlat_mat[0:len(C_global),m,e,v]= C_midlat*PgperKg   
                 # reset values after the end of the time series to nan
                 C_global_mat[(len(C_global)):,m,e,v]=np.nan
                 C_highlat_mat[(len(C_highlat)):,m,e,v]=np.nan

@@ -1,7 +1,0 @@
-Warning: no access to tty (Inappropriate ioctl for device).
-Thus no job control in this shell.
-/glade/u/apps/opt/conda/envs/npl/lib/python3.12/site-packages/xarray/core/options.py:306: FutureWarning: The enable_cftimeindex option is now a no-op and will be removed in a future version of xarray.
-  _SETTERS[k](v)
-/glade/u/apps/opt/conda/envs/npl/lib/python3.12/site-packages/xarray/core/options.py:306: FutureWarning: The enable_cftimeindex option is now a no-op and will be removed in a future version of xarray.
-  _SETTERS[k](v)
-Killed

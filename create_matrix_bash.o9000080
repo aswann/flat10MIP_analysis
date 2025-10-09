@@ -1,6 +1,0 @@
-Warning: no access to tty (Inappropriate ioctl for device).
-Thus no job control in this shell.
-  File "/glade/work/aswann/jupyter_notebooks/flat10MIP_analysis/create_metrics_matrix_onemodat_monthly.py", line 231
-    ).to_dataarray()                    C_highlat_mat[0:len(C_global),m,e,v]= (C_highlat*PgperKg).to_dataarray()
-                                        ^^^^^^^^^^^^^
-SyntaxError: invalid syntax
