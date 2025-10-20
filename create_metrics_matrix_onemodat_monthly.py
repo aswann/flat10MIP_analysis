@@ -73,8 +73,8 @@ unitslist=['kgC m-2','kgC m-2','kgC m-2','kgC m-2 s-1','kgC m-2 s-1','kgC m-2 s-
 
 
 # global and three latitude bands: trop, mid, high
-latlist=['global','highlat','troplat','midlat']
-troplat=30
+latlist=['global','highlat','troplat','midlat','midPhigh']
+troplat=20
 highlat=60
 
 ## unit conversions
@@ -113,6 +113,7 @@ C_global_mat= np.full([maxtime,len(modellist),len(runlist),len(varlist)],np.nan)
 C_highlat_mat= np.full([maxtime,len(modellist),len(runlist),len(varlist)],np.nan)
 C_troplat_mat= np.full([maxtime,len(modellist),len(runlist),len(varlist)],np.nan)
 C_midlat_mat= np.full([maxtime,len(modellist),len(runlist),len(varlist)],np.nan)
+C_midPhigh_mat= np.full([maxtime,len(modellist),len(runlist),len(varlist)],np.nan)
 
 # create a time series of years for the first dimension
 ts= np.arange(maxtime)
@@ -205,18 +206,21 @@ for m in range(len(modellist)):
                 landarea_highlat = ((masked_landarea.where(abs(ds.lat)>=highlat)).sum(dim=['lat','lon']))
                 landarea_troplat = ((masked_landarea.where((ds.lat>=-troplat) & (ds.lat<=troplat))).sum(dim=['lat','lon']))
                 landarea_midlat = ((masked_landarea.where((abs(ds.lat)>troplat) & (abs(ds.lat)<highlat))).sum(dim=['lat','lon']))
+                landarea_midPhigh = ((masked_landarea.where(abs(ds.lat)>=troplat)).sum(dim=['lat','lon']))
     
                 if var=='tas' or var=='pr': 
                     C_global =(((masked_data*masked_landarea)).sum(dim=['lat','lon']))/landarea_global
                     C_highlat=(((masked_data*masked_landarea).where(abs(ds.lat)>=highlat)).sum(dim=['lat','lon']))/landarea_highlat
                     C_troplat=(((masked_data*masked_landarea).where((ds.lat>=-troplat) & (ds.lat<=troplat))).sum(dim=['lat','lon']))/landarea_troplat
                     C_midlat=(((masked_data*masked_landarea).where((abs(ds.lat)>troplat) & (abs(ds.lat)<highlat))).sum(dim=['lat','lon']))/landarea_midlat
+                    C_midPhigh=(((masked_data*masked_landarea).where(abs(ds.lat)>=troplat)).sum(dim=['lat','lon']))/landarea_midPhigh
         
                     #put into matrix 
                     C_global_mat[0:len(C_global),m,e,v]= C_global
                     C_highlat_mat[0:len(C_global),m,e,v]= C_highlat
                     C_troplat_mat[0:len(C_global),m,e,v]= C_troplat
                     C_midlat_mat[0:len(C_global),m,e,v]= C_midlat
+                    C_midPhigh_mat[0:len(C_global),m,e,v]= C_midPhigh
                 
                 else: # it is a carbon variable and we want to make a sum
                     # total carbon on land. Becuase it is in units of carbon/area (kgC/m2), multiply by area
@@ -225,17 +229,21 @@ for m in range(len(modellist)):
                     C_highlat=((masked_data*masked_landarea).where(abs(ds.lat)>=highlat)).sum(dim=['lat','lon'])
                     C_troplat=((masked_data*masked_landarea).where((ds.lat>=-troplat) & (ds.lat<=troplat))).sum(dim=['lat','lon'])
                     C_midlat=((masked_data*masked_landarea).where((abs(ds.lat)>troplat) & (abs(ds.lat)<highlat))).sum(dim=['lat','lon'])
+                    C_midPhigh=((masked_data*masked_landarea).where(abs(ds.lat)>=troplat)).sum(dim=['lat','lon'])
         
                     #put into matrix and convert to PgC (kgC => PgC, divide by 10^12)
                     C_global_mat[0:len(C_global),m,e,v]= C_global*PgperKg
                     C_highlat_mat[0:len(C_global),m,e,v]= C_highlat*PgperKg
                     C_troplat_mat[0:len(C_global),m,e,v]= C_troplat*PgperKg
-                    C_midlat_mat[0:len(C_global),m,e,v]= C_midlat*PgperKg   
+                    C_midlat_mat[0:len(C_global),m,e,v]= C_midlat*PgperKg  
+                    C_midPhigh_mat[0:len(C_global),m,e,v]= C_midPhigh*PgperKg
+                    
                 # reset values after the end of the time series to nan
                 C_global_mat[(len(C_global)):,m,e,v]=np.nan
                 C_highlat_mat[(len(C_highlat)):,m,e,v]=np.nan
                 C_troplat_mat[(len(C_troplat)):,m,e,v]=np.nan
                 C_midlat_mat[(len(C_midlat)):,m,e,v]=np.nan
+                C_midPhigh_mat[(len(C_midPhigh)):,m,e,v]=np.nan
 
                 del ds # remove the dataset from memory
                 del data_var # remove from memory
@@ -250,6 +258,7 @@ data_array_combined[:,:,:,:,0]=C_global_mat
 data_array_combined[:,:,:,:,1]=C_highlat_mat
 data_array_combined[:,:,:,:,2]=C_troplat_mat
 data_array_combined[:,:,:,:,3]=C_midlat_mat
+data_array_combined[:,:,:,:,4]=C_midPhigh_mat
 
 
 # ###----------------####
