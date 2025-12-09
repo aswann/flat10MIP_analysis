@@ -1,4 +1,4 @@
-## Create a netcdf file with a matrix of processed time series
+## Create a netcdf file with a matrix of processed time series MONTHLY
 # this works with environment npl2025b
 # to run on the command line:
 #
@@ -59,7 +59,8 @@ modellist_orig= ['ACCESS-ESM1-5',
             'MPI-ESM1-2-LR',
             'CNRM-ESM2-1',
             'HadCM3LC-Bris',
-            'UKESM1.2']
+            'UKESM1.2',
+            'miroc-es2l']
 modellist=modellist_orig
 
 runlist = ['flat10','flat10_zec','flat10_cdr']
