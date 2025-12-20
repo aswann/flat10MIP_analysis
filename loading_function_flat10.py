@@ -544,7 +544,9 @@ def load_one_model_onevar(model, run_wc, var):
     if (model =='NorESM2-LM'):
         # all models have a var_ filename except CESM
         searchpath= outputdir +model +'/' +run +'/' +var +'_*.nc'
-    
+    if (model =='MIROC-ES2L'): #filenames and folders are lowercase for MIROC
+        searchpath= outputdir +'miroc-es2l' +'/' +run +'/*' +var +'_*.nc'  
+        
     filenamelist= np.sort(glob.glob(searchpath)) # sort in time order, xarray was having trouble arranging some of them in time dim
 
     # initialize
@@ -617,8 +619,8 @@ def load_one_model_onevar(model, run_wc, var):
             dsmerge_f['fgco2'] = dsmerge_f['field1560_mm_srf']
         if 'soilResp_mm_srf' in dsmerge_f: #HadCM3 cSoil
             dsmerge_f['rh'] = dsmerge_f['soilResp_mm_srf']
-        if 'GPP_mm_srf gpp' in dsmerge_f: #HadCM3 cSoil
-            dsmerge_f['gpp'] = dsmerge_f['GPP_mm_srf gpp']
+        if 'GPP_mm_srf' in dsmerge_f: #HadCM3 GPP # GPP_mm_srf
+            dsmerge_f['gpp'] = dsmerge_f['GPP_mm_srf']
         if 'temp_mm_1_5m' in dsmerge_f: #HadCM3 tas
             dsmerge_f['tas']= dsmerge_f['temp_mm_1_5m']
         if 'precip_mm_srf' in dsmerge_f: #HadCM3 pr
@@ -766,12 +768,20 @@ def load_grid(data_dict,modellist):
         model=modellist[m]
     
         print(model +' getting grid info')
-        # get land fraction
-        filenamelist= glob.glob(outputdir +model +'/*/*sftlf*.nc')
+        # get land fraction                   
+        
+        if model=='MIROC-ES2L':
+            filenamelist= glob.glob(outputdir +'miroc-es2l' +'/*/*sftlf*.nc')
+        else:
+            filenamelist= glob.glob(outputdir +model +'/*/*sftlf*.nc')
         landfrac = xr.open_dataset(filenamelist[0],decode_times=time_coder)
     
         # get area of gridcells
-        filenamelist= glob.glob(outputdir +model +'/*/*areacella*.nc')
+        
+        if model=='MIROC-ES2L':
+            filenamelist= glob.glob(outputdir +'miroc-es2l' +'/*/*areacella*.nc')  
+        else:
+            filenamelist= glob.glob(outputdir +model +'/*/*areacella*.nc')
         areacella = xr.open_dataset(filenamelist[0],decode_times=time_coder)
        
         #----correct the name of the lat lon dimensions for landfrac and areacella
