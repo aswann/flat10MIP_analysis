@@ -76,7 +76,7 @@ unitslist=['kgC m-2','kgC m-2','kgC m-2','kgC m-2 s-1','kgC m-2 s-1','kgC m-2 s-
 # global and three latitude bands: trop, mid, high
 latlist=['global','highlat','troplat','midlat','midPhigh']
 troplat=20
-highlat=60
+highlat=50
 
 ## unit conversions
 #unitconversions
