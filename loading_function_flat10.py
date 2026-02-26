@@ -960,6 +960,8 @@ def load_observations(zonal):
     # import numpy.ma as ma
     
     import xarray as xr
+    import xesmf as xe
+
     # time_coder = xr.coders.CFDatetimeCoder(use_cftime=True) #create time coder with cftime
     
     # import time
@@ -1005,28 +1007,64 @@ def load_observations(zonal):
         #------- load area and land fraction from a model so we can area weight
         from loading_function_flat10 import  load_grid
     
-        # load grid info for the highest resolution grid which we will interpolate
+        # # load grid info for the highest resolution grid which we will interpolate
+        # outputdir= '/glade/campaign/cgd/tss/people/aswann/flat10/'
+        # modellist=['CESM2']
+        # # initialize a dictionary to hold grid data
+        # data_dict={}
+        # data_dict = load_grid(data_dict,modellist)
+    
+        # model='CESM2' # this is the highest resolution model
+
+        # #--- get area and land fraction
+        # ds_area = data_dict[model +'_' +'areacella']
+        # ds_landfrac = data_dict[model +'_' +'landfrac']
+
+        # need to get a map of area
+        from loading_function_flat10 import  load_grid
         outputdir= '/glade/campaign/cgd/tss/people/aswann/flat10/'
-        modellist=['CESM2']
         # initialize a dictionary to hold grid data
         data_dict={}
-        data_dict = load_grid(data_dict,modellist)
-    
-        model='CESM2' # this is the highest resolution model
-    
+        data_dict = load_grid(data_dict,['GFDL-ESM4']) #this model has 1deg resolution
+
+        model='GFDL-ESM4' # this model has 1deg resolution
         #--- get area and land fraction
         ds_area = data_dict[model +'_' +'areacella']
         ds_landfrac = data_dict[model +'_' +'landfrac']
+        
+        area = ds_area['areacella']
+        landfrac=ds_landfrac['sftlf']/100 #for GFDL
+        landarea=(area*landfrac)
+
     
         #--------- calculate zonal profiles
-        # interpolate to the cSoil grid
-        area = ds_area['areacella'].squeeze().interp_like(soilCdb, method='nearest')
-        landfrac=ds_landfrac['sftlf'].interp_like(soilCdb, method='nearest')
-        cSoil_zonal=(cSoil*landfrac*area).sum(dim='lon').squeeze() 
+        # # interpolate to the cSoil grid
+        # interpolate the carbon/area map to 1 deg
+        # regrid_data(soilCdb,ds_landfrac,'cSoil', "conservative")
+        regridder = xe.Regridder(cSoil, ds_landfrac, "conservative")
+        ds_cSoil = regridder(cSoil)
 
-        # interpolate to the cVeg grid
-        area = ds_area['areacella'].squeeze().interp_like(vegCdb, method='nearest')
-        landfrac=ds_landfrac['sftlf'].interp_like(vegCdb, method='nearest')
-        cVeg_zonal=(cVeg*landfrac*area).sum(dim='lon').mean(dim='time').squeeze()
-    
+
+        # area = ds_area['areacella'].squeeze().interp_like(soilCdb, method='nearest')
+        # landfrac=ds_landfrac['sftlf'].interp_like(soilCdb, method='nearest')
+        # cSoil_zonal=(cSoil*landfrac*area).sum(dim='lon').squeeze() 
+
+        # # interpolate to the cVeg grid
+        # interpolate the carbon/area map to 1 deg
+        # regrid_data(soilCdb,ds_landfrac,'cSoil', "conservative")
+        regridder = xe.Regridder(cVeg, ds_landfrac, "conservative")
+        ds_cVeg = regridder(cVeg)
+
+
+        # area = ds_area['areacella'].squeeze().interp_like(vegCdb, method='nearest')
+        # landfrac=ds_landfrac['sftlf'].interp_like(vegCdb, method='nearest')
+        # cVeg_zonal=(cVeg*landfrac*area).sum(dim='lon').mean(dim='time').squeeze()
+
+        
+
+        # now convert by area
+        cSoil_zonal=(ds_cSoil*landarea).sum(dim='lon').squeeze() 
+        # globalsum=(ds_cSoil*landarea).sum(dim=['lat','lon'])
+        cVeg_zonal=(ds_cVeg*landarea).sum(dim='lon').mean(dim='time').squeeze()
+
         return cSoil, cVeg, cSoil_zonal, cVeg_zonal
