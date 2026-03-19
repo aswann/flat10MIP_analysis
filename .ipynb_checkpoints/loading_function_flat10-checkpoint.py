@@ -1035,14 +1035,21 @@ def load_observations(zonal):
         area = ds_area['areacella']
         landfrac=ds_landfrac['sftlf']/100 #for GFDL
         landarea=(area*landfrac)
+        landareazonal=landarea.sum(dim='lon')
 
     
         #--------- calculate zonal profiles
         # # interpolate to the cSoil grid
         # interpolate the carbon/area map to 1 deg
         # regrid_data(soilCdb,ds_landfrac,'cSoil', "conservative")
+        #
+        ## this version regrids the global map
         regridder = xe.Regridder(cSoil, ds_landfrac, "conservative")
         ds_cSoil = regridder(cSoil)
+        #
+        # ## this version regrids only the zonal profile
+        # regridder_z=xe.Regridder(cSoil.mean(dim='lon'), ds_landfrac, "conservative")
+        # ds_cSoil_zonal=regridder_z(cSoil.mean(dim='lon'))
 
 
         # area = ds_area['areacella'].squeeze().interp_like(soilCdb, method='nearest')
@@ -1055,6 +1062,11 @@ def load_observations(zonal):
         regridder = xe.Regridder(cVeg, ds_landfrac, "conservative")
         ds_cVeg = regridder(cVeg)
 
+        # ## this version regrids only the zonal profile
+        # regridder_z=xe.Regridder(cVeg.mean(dim='lon'), ds_landfrac, "conservative")
+        # ds_cVeg_zonal=regridder_z(cVeg.mean(dim='lon'))
+
+
 
         # area = ds_area['areacella'].squeeze().interp_like(vegCdb, method='nearest')
         # landfrac=ds_landfrac['sftlf'].interp_like(vegCdb, method='nearest')
@@ -1066,5 +1078,10 @@ def load_observations(zonal):
         cSoil_zonal=(ds_cSoil*landarea).sum(dim='lon').squeeze() 
         # globalsum=(ds_cSoil*landarea).sum(dim=['lat','lon'])
         cVeg_zonal=(ds_cVeg*landarea).sum(dim='lon').mean(dim='time').squeeze()
+
+        # # now convert by area
+        # cSoil_zonal=(ds_cSoil_zonal*landareazonal).squeeze() 
+        # # globalsum=(ds_cSoil*landarea).sum(dim=['lat','lon'])
+        # cVeg_zonal=(ds_cVeg_zonal*landareazonal).mean(dim='time').squeeze()
 
         return cSoil, cVeg, cSoil_zonal, cVeg_zonal
