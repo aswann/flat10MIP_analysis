@@ -94,7 +94,7 @@ def load_flat10(data_dict, modellist, runlist, runlist_wc, varlist):
                 # lets replace the "year" dimension (data is called "years")
                 # with a cftime object called "time" so it matches the other models
                 # some variables don't have the variable that defines years at all
-                if ((model == 'GISS_E2.1') and ('time' not in dsmerge_f)):         
+                if ((model == 'GISS_E2.1' or model =='NASA-GISS-E2.1-G-CC2') and ('time' not in dsmerge_f)):         
                     if 'year' in dsmerge_f: # if it has a variable called year, use that to make the time index
                         time_index = [cftime.DatetimeNoLeap(year, 1, 1) for year in dsmerge_f.year]
                     else: # if it does not have a variable for year, use the size of the year dimension to make the time index
@@ -195,7 +195,7 @@ def load_flat10(data_dict, modellist, runlist, runlist_wc, varlist):
     
                     # the units for cVeg in GISS look like they MUST be in gC rather than kgC 
                     # CHANGING THE UNIT - even though it is reported as kgC, assuming it is in gC
-                    if ((var == 'cVeg') and (model == 'GISS_E2.1')):
+                    if ((var == 'cVeg') and (model == 'GISS_E2.1' or model =='NASA-GISS-E2.1-G-CC2')):
                         dsmerge_f[var]=dsmerge_f[var]*(1/1000) # convert from gC to kgC
     
                     
@@ -328,7 +328,7 @@ def load_one_model(model, run_wc, varlist):
         # lets replace the "year" dimension (data is called "years")
         # with a cftime object called "time" so it matches the other models
         # some variables don't have the variable that defines years at all
-        if ((model == 'GISS_E2.1') and ('time' not in dsmerge_f)):         
+        if ((model == 'GISS_E2.1' or model =='NASA-GISS-E2.1-G-CC2') and ('time' not in dsmerge_f)):         
             if 'year' in dsmerge_f: # if it has a variable called year, use that to make the time index
                 time_index = [cftime.DatetimeNoLeap(year, 1, 1) for year in dsmerge_f.year]
             else: # if it does not have a variable for year, use the size of the year dimension to make the time index
@@ -429,7 +429,7 @@ def load_one_model(model, run_wc, varlist):
 
             # the units for cVeg in GISS look like they MUST be in gC rather than kgC 
             # CHANGING THE UNIT - even though it is reported as kgC, assuming it is in gC
-            if ((var == 'cVeg') and (model == 'GISS_E2.1')):
+            if ((var == 'cVeg') and (model == 'GISS_E2.1' or model =='NASA-GISS-E2.1-G-CC2')):
                 dsmerge_f[var]=dsmerge_f[var]*(1/1000) # convert from gC to kgC
 
             
@@ -546,6 +546,8 @@ def load_one_model_onevar(model, run_wc, var):
         searchpath= outputdir +model +'/' +run +'/' +var +'_*.nc'
     if (model =='MIROC-ES2L'): #filenames and folders are lowercase for MIROC
         searchpath= outputdir +'miroc-es2l' +'/' +run +'/*' +var +'_*.nc'  
+    if (model =='NASA-GISS-E2.1-G-CC2'): #replace displayed name for GISS with longer version
+        searchpath= outputdir +'GISS_E2.1' +'/' +run +'/*' +var +'_*.nc'
         
     filenamelist= np.sort(glob.glob(searchpath)) # sort in time order, xarray was having trouble arranging some of them in time dim
 
@@ -572,7 +574,7 @@ def load_one_model_onevar(model, run_wc, var):
     # lets replace the "year" dimension (data is called "years")
     # with a cftime object called "time" so it matches the other models
     # some variables don't have the variable that defines years at all
-    if ((model == 'GISS_E2.1') and ('time' not in dsmerge_f)):         
+    if ((model == 'GISS_E2.1' or model =='NASA-GISS-E2.1-G-CC2') and ('time' not in dsmerge_f)):         
         if 'year' in dsmerge_f: # if it has a variable called year, use that to make the time index
             time_index = [cftime.DatetimeNoLeap(year, 1, 1) for year in dsmerge_f.year]
         else: # if it does not have a variable for year, use the size of the year dimension to make the time index
@@ -687,7 +689,7 @@ def load_one_model_onevar(model, run_wc, var):
 
         # the units for cVeg in GISS look like they MUST be in gC rather than kgC 
         # CHANGING THE UNIT - even though it is reported as kgC, assuming it is in gC
-        if ((var == 'cVeg') and (model == 'GISS_E2.1')):
+        if ((var == 'cVeg') and (model == 'GISS_E2.1' or model =='NASA-GISS-E2.1-G-CC2')):
             dsmerge_f[var]=dsmerge_f[var]*(1/1000) # convert from gC to kgC
 
         
@@ -772,6 +774,8 @@ def load_grid(data_dict,modellist):
         
         if model=='MIROC-ES2L':
             filenamelist= glob.glob(outputdir +'miroc-es2l' +'/*/*sftlf*.nc')
+        elif (model =='NASA-GISS-E2.1-G-CC2'): #replace displayed name for GISS with longer version
+            filenamelist= glob.glob(outputdir +'GISS_E2.1' +'/*/*sftlf*.nc')
         else:
             filenamelist= glob.glob(outputdir +model +'/*/*sftlf*.nc')
         landfrac = xr.open_dataset(filenamelist[0],decode_times=time_coder)
@@ -779,7 +783,9 @@ def load_grid(data_dict,modellist):
         # get area of gridcells
         
         if model=='MIROC-ES2L':
-            filenamelist= glob.glob(outputdir +'miroc-es2l' +'/*/*areacella*.nc')  
+            filenamelist= glob.glob(outputdir +'miroc-es2l' +'/*/*areacella*.nc') 
+        elif (model =='NASA-GISS-E2.1-G-CC2'): #replace displayed name for GISS with longer version
+            filenamelist= glob.glob(outputdir +'GISS_E2.1' +'/*/*areacella*.nc')
         else:
             filenamelist= glob.glob(outputdir +model +'/*/*areacella*.nc')
         areacella = xr.open_dataset(filenamelist[0],decode_times=time_coder)
@@ -793,7 +799,7 @@ def load_grid(data_dict,modellist):
             areacella = areacella.rename({'cell_area': 'areacella'})
             landfrac = landfrac.rename({'land_area_fraction': 'sftlf'})
     
-        if (model =='GISS_E2.1'):
+        if (model =='GISS_E2.1' or model =='NASA-GISS-E2.1-G-CC2'):
             # lon is -180 to 180 in data but 0 to 360 in grid files =>convert
             areacella['lon']=areacella['lon']-180
             landfrac['lon']=landfrac['lon']-180

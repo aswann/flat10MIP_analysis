@@ -54,7 +54,7 @@ outputdir= '/glade/campaign/cgd/tss/people/aswann/flat10/'
 modellist_orig= ['ACCESS-ESM1-5',  
             'CESM2',    
             'GFDL-ESM4',  
-            'GISS_E2.1',  
+            'NASA-GISS-E2.1-G-CC2', #'GISS_E2.1',  
             'NorESM2-LM',
             'MPI-ESM1-2-LR',
             'CNRM-ESM2-1',
