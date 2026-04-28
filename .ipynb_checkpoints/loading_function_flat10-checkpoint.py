@@ -801,10 +801,22 @@ def load_grid(data_dict,modellist):
     
         if (model =='GISS_E2.1' or model =='NASA-GISS-E2.1-G-CC2'):
             # lon is -180 to 180 in data but 0 to 360 in grid files =>convert
-            areacella['lon']=areacella['lon']-180
-            landfrac['lon']=landfrac['lon']-180
-            #landfrac['lon']=landfrac['lon']-180
-            #landfrac.reindex_like(areacella, method='nearest',tolerance=0.05)
+            df=landfrac
+            df.coords['lon'] = (df.coords['lon'] + 180) % 360 - 180
+            df = df.sortby(df.lon)
+            landfrac=df
+
+            df=areacella
+            df.coords['lon'] = (df.coords['lon'] + 180) % 360 - 180
+            df = df.sortby(df.lon)
+            areacella=df
+            
+            # areacella['lon']=areacella['lon']-180
+            # landfrac['lon']=landfrac['lon']-180
+            # areacella = areacella.sortby(areacella.lon)
+            # landfrac = landfrac.sortby(landfrac.lon)
+            # #landfrac['lon']=landfrac['lon']-180
+            # #landfrac.reindex_like(areacella, method='nearest',tolerance=0.05)
             
         # add to the dictionary
         data_dict[model +'_areacella'] = areacella
